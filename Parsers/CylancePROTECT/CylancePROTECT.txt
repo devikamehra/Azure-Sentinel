@@ -29,12 +29,12 @@
 //
 // 
 let LogHeader = Syslog
-| where Computer in ("server1", "server2") // server1 and server2 are examples, replace this list with your CylancePROTECT devices
-| extend EventType = extract(@"Event Type: ([^,]+),",1,SyslogMessage),
+| where Computer in ("sysloghost") // Replace sysloghost with the name of your syslog server
+| extend EventType = extract(@"^\W*([\w-]+),",1,SyslogMessage),
         EventName = extract(@"Event Name: ([^,]+),",1,SyslogMessage),
         DeviceName = extract(@"Device Name: ([^,]+),",1,SyslogMessage);
 let DeviceEvents = LogHeader
-| where EventType == "Device"
+| where SyslogMessage contains "Device,"
 | extend AgentVersion = extract(@"Agent Version: ([^,]+),",1,SyslogMessage),
         SrcIpAddr = split(extract(@"IP Address: \(([^)]+)\),",1,SyslogMessage),","),
         SrcMacAddr = split(extract(@"MAC Address: \(([^)]+)\),",1,SyslogMessage),","),
@@ -42,7 +42,7 @@ let DeviceEvents = LogHeader
         OsVersion = extract(@"OS: ([^,]+),",1,SyslogMessage),
         ZoneNames = split(extract(@"Zone Names: \(([^)]+)\)(,|$)",1,SyslogMessage),",");
 let ScriptControlEvents = LogHeader
-| where EventType == "ScriptControl"
+| where SyslogMessage contains "ScriptControl"
 | extend FilePath = extract(@"File Path: ([^,]+),",1,SyslogMessage),
         FileHashSha256 = extract(@"SHA256: ([^,]+),",1,SyslogMessage),
         Interpreter = extract(@"Interpreter: ([^,]+),",1,SyslogMessage),
@@ -51,7 +51,7 @@ let ScriptControlEvents = LogHeader
         DeviceId = extract(@"Device Id: ([^,]+),",1,SyslogMessage),
         PolicyName = extract(@"Policy Name: ([^,]+)(,|$)",1,SyslogMessage);
 let ThreatEvents = LogHeader
-| where EventType == "Threat"
+| where SyslogMessage contains "Threat"
 | extend SrcIpAddr = split(extract(@"IP Address: \(([^)]+)\),",1,SyslogMessage),","),
         FileName = extract(@"File Name: ([^,]+),",1,SyslogMessage),
         Path = extract(@"Path: ([^,]+)(,|$)",1,SyslogMessage),
@@ -72,7 +72,7 @@ let ThreatEvents = LogHeader
         DeviceId = extract(@"Device Id: ([^,]+),",1,SyslogMessage),
         PolicyName = extract(@"Policy Name: ([^,]+)(,|$)",1,SyslogMessage);
 let DeviceControlEvents = LogHeader
-| where EventType == "DeviceControl"
+| where SyslogMessage contains "DeviceControl"
 | extend ExtDeviceType = extract(@"External Device Type: ([^,]+),",1,SyslogMessage),
         ExtDeviceVendorId = extract(@"External Device Vendor ID: ([^,]+),",1,SyslogMessage),
         ExtDeviceName = extract(@"External Device Name: ([^,]+),",1,SyslogMessage),
@@ -82,7 +82,7 @@ let DeviceControlEvents = LogHeader
         DeviceId = extract(@"Device Id: ([^,]+),",1,SyslogMessage),
         PolicyName = extract(@"Policy Name: ([^,]+)(,|$)",1,SyslogMessage);
 let AuditLog = LogHeader
-| where EventType == "AuditLog"
+| where SyslogMessage contains "AuditLog"
 | extend Provider = extract(@"Provider: ([^,]+),",1,SyslogMessage),
         PolicyChanged = extract(@"Policy Changed: ([^,]+),",1,SyslogMessage),
         ZoneNames = split(extract(@"Zone: ([^,]+)(,|$)",1,SyslogMessage),","),
@@ -90,7 +90,7 @@ let AuditLog = LogHeader
         DeviceName = extract(@"Devices?:\s([\w\d\-\_]+)\,",1,SyslogMessage),
         SrcIpAddr = split(extract(@"Source IP: ([\w\.\:]+)\,",1,SyslogMessage),",");
 let NoEventType = LogHeader
-| where isempty(EventType)
+| where isempty(SyslogMessage)
 | extend EventType = iif(isempty(EventType),"Other",EventType)
 | extend AgentVersion = tostring(parse_json(SyslogMessage).["Agent Version"]),
         BackgroundDetection = tostring(parse_json(SyslogMessage).["Background Detection"]),
@@ -145,3 +145,4 @@ let NoEventType = LogHeader
 let AllOtherEvents = LogHeader
 | where EventType !in ("Device", "ScriptControl", "Threat", "DeviceControl", "AuditLog", "Other");
 union DeviceEvents, ScriptControlEvents, ThreatEvents, DeviceControlEvents, AuditLog, NoEventType, AllOtherEvents
+| where EventType != "Other"
